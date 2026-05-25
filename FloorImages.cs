@@ -134,6 +134,8 @@ namespace TNovFinishing
             }
             #endregion
 
+            bool unhandledError = false;
+
             #region Основной код. Эскизы
             using (Transaction transaction1 = new Transaction(doc))
             {
@@ -237,6 +239,9 @@ namespace TNovFinishing
                 catch (Exception ex)
                 {
                     Logger.Log("Ошибка: " + ex.Message, 4);
+                    new InfoWindow280("Ошибка: " + ex.Message).ShowDialog();
+                    unhandledError = true;
+
                 }
             }
             #endregion
@@ -376,6 +381,9 @@ namespace TNovFinishing
                 catch (Exception ex)
                 {
                     Logger.Log("Ошибка: " + ex.Message, 4);
+                    new InfoWindow280("Ошибка: " + ex.Message).ShowDialog();
+                    unhandledError = true;
+
                 }
                 finally
                 {
@@ -388,6 +396,12 @@ namespace TNovFinishing
             {
                 new InfoWindow280("В проекте есть чертежные виды Пол_Тип с недопустимыми символами (" +
                     rSymbols + ") в именах: " + string.Join(", ", badNames) + ". Эти виды не обработаны, переименуйте виды и перезапустите плагин.").ShowDialog();
+            }
+
+            if (unhandledError)
+            {
+                Logger.Log("Завершение работы с ошибками.", 4);
+                return Result.Succeeded;
             }
 
             Logger.Log("Завершение работы.",5);

@@ -108,25 +108,40 @@ namespace TNovFinishing
 
             #endregion
 
+            bool unhandledError = false;
             #region Основной код
             using (Transaction transaction = new Transaction(doc))
             {
-                transaction.Start("TNov - Ведомость отделки");
-                Logger.Log("Открываем транзакцию", 1);
-
-                foreach(var elem in elems)
+                try
                 {
-                    Logger.Log("Элемент " + elem.Id.IntegerValue.ToString(), 2);
-                    Parameter roomParam = elem.get_Parameter(NFinishRoomParamGuid);
-                    roomParam?.Set(""); //очищаем параметр, чтобы отработали апдейтеры
+                    transaction.Start("TNov - Ведомость отделки");
+                    Logger.Log("Открываем транзакцию", 1);
+
+                    foreach (var elem in elems)
+                    {
+                        Logger.Log("Элемент " + elem.Id.IntegerValue.ToString(), 2);
+                        Parameter roomParam = elem.get_Parameter(NFinishRoomParamGuid);
+                        roomParam?.Set(""); //очищаем параметр, чтобы отработали апдейтеры
+                    }
+
+
+                    transaction.Commit();
+
+                    Logger.Log("Закрываем транзакцию.", 1);
                 }
-
-
-                transaction.Commit();
-                
-                Logger.Log("Закрываем транзакцию.", 1);
+                catch (Exception ex) {
+                    new InfoWindow280("Ошибка: " + ex.Message).ShowDialog();
+                    unhandledError = true;
+                    Logger.Log("Ошибка: " + ex.Message, 4);
+                }
             }
             #endregion
+
+            if (unhandledError)
+            {
+                Logger.Log("Завершение работы с ошибками.", 4);
+                return Result.Succeeded;
+            }
 
             new InfoWindow280("Готово! Параметры отделки заполнены.").ShowDialog();
 

@@ -9,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Xml.Linq;
 using TNovCommon;
 
 namespace TNovFinishing
@@ -1057,6 +1058,7 @@ namespace TNovFinishing
         {
             //параметры
             Guid NFinishRoomParamGuid = new Guid("8b9d4aff-a6c8-4ad5-b0f5-442f2b87c765"); //N_Отделка.Помещение
+            Guid NFinishRoomAndNumberParamGuid = new Guid("3855f341-c148-4170-914e-eb1d75fd1ba0"); //N_Отделка.Помещение и номер
             string NFinishElemNaznParam = "Отделка.Помещение.Назначение";
             Guid NFinishElemGroupParamGuid = new Guid("60e4ba60-55ca-4922-8ce7-22a6c43c95c2"); //N_Отделка.ГруппаТекст
             BuiltInParameter roomNameParam = BuiltInParameter.ROOM_NAME;
@@ -1065,17 +1067,20 @@ namespace TNovFinishing
             Guid NTParamsNotSetParamGuid = new Guid("70879f6b-b838-49de-8ff5-35e1c7d97e0c");
             Guid TPolozhParamGuid = new Guid("7d68b956-732c-4da9-99a8-13be56ccaf94"); //Т_Положение
             Guid TNaznParamGuid = new Guid("2a73f7b8-05e7-410a-b22a-66498e315df4"); //Т_Назначение
-            Guid NFinishRoomNumberParamGuid = new Guid("20491360-378a-456b-aee0-4836c7ebb4c2"); //N_Помещение.Номер
+            BuiltInParameter roomNumberParam = BuiltInParameter.ROOM_NUMBER;
 
             if (room == null) return;
 
             Parameter roomParam = wall.get_Parameter(NFinishRoomParamGuid);
             Parameter roomParam2 = wall.LookupParameter(NFinishElemNaznParam);
             Parameter roomParam3 = wall.get_Parameter(NFinishElemGroupParamGuid);
+            Parameter roomParam4 = wall.get_Parameter(NFinishRoomAndNumberParamGuid);
 
             string roomName = room.get_Parameter(roomNameParam).AsString();
             string roomNazn = room.get_Parameter(roomNaznParam)?.AsString() ?? "";
             string roomGroup = room.get_Parameter(NFinishRoomGroupParamGuid)?.AsInteger().ToString() ?? "";
+            string roomNumber = room.get_Parameter(roomNumberParam)?.AsString() ?? "";
+            string roomNameAndNumber = roomName + " (" + roomNumber + ")";
 
             string currentValue = roomParam?.AsString();
             if (currentValue != roomName)
@@ -1093,6 +1098,12 @@ namespace TNovFinishing
             if (currentValue3 != roomGroup)
             {
                 roomParam3.Set(roomGroup);
+            }
+
+            string currentValue4 = roomParam4?.AsString();
+            if (currentValue4 != roomNameAndNumber)
+            {
+                roomParam4.Set(roomNameAndNumber);
             }
 
             if (Param.ParamExistByGuid(NTParamsNotSetParamGuid, wall))

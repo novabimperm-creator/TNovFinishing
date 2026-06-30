@@ -135,28 +135,40 @@ namespace TNovFinishing
                 string roomNumber = room.get_Parameter(roomNumberParam)?.AsString() ?? "";
                 string roomNameAndNumber = roomName + " (" + roomNumber + ")";
 
-                string currentValue = roomParam?.AsString();
-                if (currentValue != roomName)
+                if (roomParam != null)
                 {
-                    roomParam.Set(roomName);
+                    string currentValue = roomParam?.AsString();
+                    if (currentValue != roomName)
+                    {
+                        roomParam.Set(roomName);
+                    }
                 }
 
-                string currentValue2 = roomParam2?.AsString();
-                if (currentValue2 != roomNazn)
+                if (roomParam2 != null)
                 {
-                    roomParam2.Set(roomNazn);
+                    string currentValue2 = roomParam2?.AsString();
+                    if (currentValue2 != roomNazn)
+                    {
+                        roomParam2.Set(roomNazn);
+                    }
                 }
 
-                string currentValue3 = roomParam3?.AsString();
-                if (currentValue3 != roomGroup)
+                if (roomParam3 != null)
                 {
-                    roomParam3.Set(roomGroup);
+                    string currentValue3 = roomParam3?.AsString();
+                    if (currentValue3 != roomGroup)
+                    {
+                        roomParam3.Set(roomGroup);
+                    }
                 }
 
-                string currentValue4 = roomParam4?.AsString();
-                if (currentValue4 != roomNameAndNumber)
+                if (roomParam4 != null)
                 {
-                    roomParam4.Set(roomNameAndNumber);
+                    string currentValue4 = roomParam4.AsString();
+                    if (currentValue4 != roomNameAndNumber)
+                    {
+                        roomParam4.Set(roomNameAndNumber);
+                    }
                 }
 
                 if (Param.ParamExistByGuid(NTParamsNotSetParamGuid, element))

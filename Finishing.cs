@@ -119,7 +119,12 @@ namespace TNovFinishing
 
                     foreach (var elem in elems)
                     {
-                        Logger.Log("Элемент " + elem.Id.IntegerValue.ToString(), 2);
+#if R2022
+                        string idstr = elem.Id.IntegerValue.ToString();
+#else
+                        string idstr = elem.Id.Value.ToString();
+#endif
+                        Logger.Log("Элемент " + idstr, 2);
                         Parameter roomParam = elem.get_Parameter(NFinishRoomParamGuid);
                         roomParam?.Set(""); //очищаем параметр, чтобы отработали апдейтеры
                     }

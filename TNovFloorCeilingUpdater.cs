@@ -31,6 +31,7 @@ namespace TNovFinishing
             }
             else if (Nazn.Contains("Лестн")) TNazn = "Лестница";
             else if (Nazn.Contains("Кладов")) TNazn = "Кладовые";
+            else if (Nazn.Contains("кладовых")) TNazn = "МОП";
             else if (Nazn.Contains("Встроен")) TNazn = "МОП";
             else if (Nazn.Contains("Парк")) TNazn = "МОП";
             else if (Nazn.Contains("МОП"))
@@ -101,8 +102,13 @@ namespace TNovFinishing
 
         private bool IsFloorOrCeiling(Element element)
         {
+#if R2022
             return element.Category?.Id.IntegerValue == (int)BuiltInCategory.OST_Floors ||
                    element.Category?.Id.IntegerValue == (int)BuiltInCategory.OST_Ceilings;
+#else
+            return element.Category?.Id.Value == (int)BuiltInCategory.OST_Floors ||
+                   element.Category?.Id.Value == (int)BuiltInCategory.OST_Ceilings;
+#endif
         }
 
         private void UpdateElementRoomParameter(Document doc, Element element)

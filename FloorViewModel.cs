@@ -28,6 +28,7 @@ namespace TNovFinishing
         private void Param()
         {
             BuiltInParameter gm = BuiltInParameter.ALL_MODEL_MODEL; //параметр Группа модели
+#if R2022
             List<FloorType> list1 = ((IEnumerable<Element>)new FilteredElementCollector(RevitAPI.Document)
                 .OfClass(typeof(FloorType)))
                 .Where<Element>((Func<Element, bool>)(f => f.Category.Id.IntegerValue.Equals(-2000032)))
@@ -35,7 +36,15 @@ namespace TNovFinishing
                 .Where<Element>((Func<Element, bool>)(f => f.get_Parameter(gm).AsString().Contains("Пол")))
                 .Cast<FloorType>().OrderBy<FloorType, string>((Func<FloorType, string>)(f => ((Element)f).Name), (IComparer<string>)new AlphanumComparatorFastString())
                 .ToList<FloorType>(); //типы полов
-
+#else
+            List<FloorType> list1 = ((IEnumerable<Element>)new FilteredElementCollector(RevitAPI.Document)
+                .OfClass(typeof(FloorType)))
+                .Where<Element>((Func<Element, bool>)(f => f.Category.Id.Value.Equals(-2000032)))
+                .Where<Element>((Func<Element, bool>)(f => f.get_Parameter(gm).AsString() != null))
+                .Where<Element>((Func<Element, bool>)(f => f.get_Parameter(gm).AsString().Contains("Пол")))
+                .Cast<FloorType>().OrderBy<FloorType, string>((Func<FloorType, string>)(f => ((Element)f).Name), (IComparer<string>)new AlphanumComparatorFastString())
+                .ToList<FloorType>(); //типы полов
+#endif
             typelist = new ObservableCollection<string> { };
             foreach (Element e in list1) { typelist.Add(e.Name); }
             typename = typelist[typenum];

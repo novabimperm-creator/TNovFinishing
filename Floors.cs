@@ -80,6 +80,7 @@ namespace TNovFinishing
             Logger.Log("Начинаем сбор элементов",1);
 
             Autodesk.Revit.UI.Selection.Selection selection = commandData.Application.ActiveUIDocument.Selection;
+#if R2022
             List<FloorType> list1 = ((IEnumerable<Element>)new FilteredElementCollector(doc)
                 .OfClass(typeof(FloorType)))
                 .Where<Element>((Func<Element, bool>)(f => f.Category.Id.IntegerValue.Equals(-2000032)))
@@ -87,13 +88,15 @@ namespace TNovFinishing
                 .Where<Element>((Func<Element, bool>)(f => f.get_Parameter(gm).AsString().Contains("Пол")))
                 .Cast<FloorType>().OrderBy<FloorType, string>((Func<FloorType, string>)(f => ((Element)f).Name), (IComparer<string>)new AlphanumComparatorFastString())
                 .ToList<FloorType>(); //типы полов
-
-            /*List<FamilyInstance> doors = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Doors)   //фильтр по категории Двери
-                                                                         .WhereElementIsNotElementType()
-                                                                         .Cast<FamilyInstance>()
-                                                                         .Where(it => it.Symbol.get_Parameter(gm).AsString() == "Дверь") //только род семейства
-                                                                         .ToList();
-            */
+#else
+            List<FloorType> list1 = ((IEnumerable<Element>)new FilteredElementCollector(doc)
+               .OfClass(typeof(FloorType)))
+               .Where<Element>((Func<Element, bool>)(f => f.Category.Id.Value.Equals(-2000032)))
+               .Where<Element>((Func<Element, bool>)(f => f.get_Parameter(gm).AsString() != null))
+               .Where<Element>((Func<Element, bool>)(f => f.get_Parameter(gm).AsString().Contains("Пол")))
+               .Cast<FloorType>().OrderBy<FloorType, string>((Func<FloorType, string>)(f => ((Element)f).Name), (IComparer<string>)new AlphanumComparatorFastString())
+               .ToList<FloorType>(); //типы полов
+#endif
             if (list1.Count == 0)
             {
                 string info1txt = "Ошибка! В проекте отсутствуют типы полов. Необходимо наличие перекрытий со значением параметра Группа модели, содержащим слово Пол.";
@@ -128,7 +131,7 @@ namespace TNovFinishing
             }
 
             if(roomList.Count<1) { Logger.Log("Элементы не выбраны. Завершение работы.", 3); return Result.Cancelled; }
-            #endregion
+#endregion
 
             Logger.Log("Элементы собраны. Выбор сценария",1);
 
@@ -181,98 +184,89 @@ namespace TNovFinishing
                     {
                         Room room = room1;
                         Level level = ((SpatialElement)room).Level;
-                        Logger.Log("Комната "+room.Id.ToString(),1);
+                        Logger.Log("Комната " + room.Id.ToString(), 1);
+
                         if (level != null)
                         {
                             Logger.Log("ищем границы", 2);
-                            CurveArray curveArray1 = new CurveArray();
-                            CurveArray curveArray2 = new CurveArray();
-                            IList<IList<BoundarySegment>> boundarySegments = ((SpatialElement)room).GetBoundarySegments(new SpatialElementBoundaryOptions());
+                            IList<IList<BoundarySegment>> boundarySegments =
+                                ((SpatialElement)room).GetBoundarySegments(new SpatialElementBoundaryOptions());
                             Element elem = (Element)room;
-                            Autodesk.Revit.DB.LocationPoint lp = (LocationPoint)elem.Location;
+                            LocationPoint lp = (LocationPoint)elem.Location;
 
-
-
-                            //ищем двери в помещении
-                            /*foreach (var door in doors)
+                            // --- 1. Собираем все контуры в список CurveLoop ---
+                            IList<CurveLoop> curveLoops = new List<CurveLoop>();
+                            foreach (IList<BoundarySegment> segList in boundarySegments)
                             {
-                                Element doorelem = (Element)door;
-                                BoundingBoxXYZ elembox = elem.get_BoundingBox(doc.ActiveView);
-                                Outline outline1 = new Outline(elembox.Min, elembox.Max);
-                                BoundingBoxIntersectsFilter bbfilter = new BoundingBoxIntersectsFilter(outline1, 50 / 304.8); //допуск 50 мм
-                                FilteredElementCollector collector = new FilteredElementCollector(doc, workviewid);
-                                collector.WherePasses(bbfilter);
-                                foreach(var element in collector) 
+                                CurveLoop loop = new CurveLoop();
+                                foreach (BoundarySegment seg in segList)
                                 {
-                                    if(doorelem.Id==element.Id)
-                                    {
-                                        XYZ xyz = (XYZ)null;
-                                        xyz = door.FacingOrientation;
-                                        Element host = door.Host;
-                                        //XYZ perpendicularVector = GeometryUtils.GetVectorByEnds(((LocationCurve)host.Location).Curve).CrossProduct(XYZ.BasisZ);
-
-                                        
-                                    }
+                                    loop.Append(seg.GetCurve());
                                 }
-                            }*/
-                            Logger.Log("собираем curveArrays", 2);
-                            for (int index = 0; index < boundarySegments.Count<IList<BoundarySegment>>(); ++index)
-                            {
-                                if (index == 0)
-                                {
-                                    foreach (BoundarySegment boundarySegment in (IEnumerable<BoundarySegment>)boundarySegments[index])
-                                        curveArray1.Append(boundarySegment.GetCurve());
-                                }
-                                else
-                                {
-                                    foreach (BoundarySegment boundarySegment in (IEnumerable<BoundarySegment>)boundarySegments[index])
-                                        curveArray2.Append(boundarySegment.GetCurve());
-                                }
+                                curveLoops.Add(loop);
                             }
+
                             Logger.Log("полы в проекте", 2);
-                            List<Floor> list2 = ((IEnumerable<Element>)new FilteredElementCollector(doc)
-                                .OfClass(typeof(Floor)))
-                                .Where<Element>((Func<Element, bool>)(f => ElementId.Equals(f.LevelId, ((Element)room).LevelId)))
-                                .Cast<Floor>().Where<Floor>((Func<Floor, bool>)(f => ((Element)f).Category.Id.IntegerValue.Equals(-2000032)))
-                                .Where<Floor>((Func<Floor, bool>)(f => ((Element)f.FloorType).get_Parameter(gm).AsString().Contains("Пол")))
-                                .OrderBy<Floor, string>((Func<Floor, string>)(f => ((Element)f).Name))
-                                .ToList<Floor>();
-                            Logger.Log("колво "+list2.Count.ToString(),2);
+#if R2022
+                            List<Floor> list2 = new FilteredElementCollector(doc)
+                                .OfClass(typeof(Floor))
+                                .Cast<Floor>()
+                                .Where(f => f.LevelId == room.LevelId)
+                                .Where(f => f.Category.Id.IntegerValue == -2000032)
+                                .Where(f => f.FloorType.get_Parameter(gm).AsString().Contains("Пол"))
+                                .OrderBy(f => f.Name)
+                                .ToList();
+#else
+                            List<Floor> list2 = new FilteredElementCollector(doc)
+                                .OfClass(typeof(Floor))
+                                .Cast<Floor>()
+                                .Where(f => f.LevelId == room.LevelId)
+                                .Where(f => f.Category.Id.Value == -2000032)
+                                .Where(f => f.FloorType.get_Parameter(gm).AsString().Contains("Пол"))
+                                .OrderBy(f => f.Name)
+                                .ToList();
+#endif
+                            Logger.Log("колво " + list2.Count.ToString(), 2);
+
+                            // --- Удаление старого пола (без изменений) ---
                             transaction.Start("Удаление старого пола");
-                            Logger.Log("   Удаляем старый пол",1);
-                            Solid solid1 = (Solid)null;
+                            Logger.Log("   Удаляем старый пол", 1);
+                            Solid solid1 = null;
                             GeometryElement geometry = elem.get_Geometry(new Options());
                             List<Solid> solids1 = GetSolidsOfElement(geometry);
                             solid1 = solids1[0];
-                            if ((GeometryObject)solid1 == (GeometryObject)null)
-                            { Logger.Log("      прервано",1); break; }
-                            
+                            if (solid1 == null) { Logger.Log("      прервано", 1); break; }
+
                             foreach (Floor floor in list2)
                             {
-                                Solid solid2 = (Solid)null;
+                                Solid solid2 = null;
                                 Element elem2 = (Element)floor;
-                                var options2 = new Autodesk.Revit.DB.Options();
                                 GeometryElement geometry2 = elem2.get_Geometry(new Options());
                                 List<Solid> solids2 = GetSolidsOfElement(geometry2);
                                 solid2 = solids2[0];
-                                if ((GeometryObject)solid2 == (GeometryObject)null)
-                                { Logger.Log("      прервано",1); break; }
-                                Solid solid3 = BooleanOperationsUtils.ExecuteBooleanOperation(SolidUtils.CreateTransformed(solid2, Transform.CreateTranslation(new XYZ(0.0, 0.0, 625.0 / 381.0))), solid1, (BooleanOperationsType)2);
-                                
-                                if ((GeometryObject)solid3!=(GeometryObject)null && solid3.Volume != 0.0)
-                                    doc.Delete(((Element)floor).Id);
+                                if (solid2 == null) { Logger.Log("      прервано", 1); break; }
+
+                                Solid solid3 = BooleanOperationsUtils.ExecuteBooleanOperation(
+                                    SolidUtils.CreateTransformed(solid2, Transform.CreateTranslation(new XYZ(0, 0, 625.0 / 381.0))),
+                                    solid1,
+                                    BooleanOperationsType.Intersect);
+
+                                if (solid3 != null && solid3.Volume != 0.0)
+                                    doc.Delete(floor.Id);
                             }
                             transaction.Commit();
-                            Logger.Log("   Старый пол удален;",1);
-                            transaction.Start("Создание пола");
-                            Logger.Log("   Создаем новый пол",1);
-                            Floor floor1 = doc.Create.NewFloor(curveArray1, ft, level, false);
-                            Element felem = (Element)floor1;
-                            Parameter fhal = felem.get_Parameter(hal);
-                            fhal.Set(offset); //назначаем смещение от уровня
-                            
-                            //параметры отделки
+                            Logger.Log("   Старый пол удален;", 1);
 
+                            // --- Создание нового пола через Floor.Create ---
+                            transaction.Start("Создание пола");
+                            Logger.Log("   Создаем новый пол", 1);
+
+                            // Используем перегрузку с параметром offset
+                            Floor floor1 = Floor.Create(doc, curveLoops, ft.Id, level.Id, false, null, offset);
+
+                            Element felem = (Element)floor1;
+
+                            // Дополнительная установка параметров отделки (как в исходном коде)
                             Parameter roomParam = felem.get_Parameter(NFinishRoomParamGuid);
                             Parameter roomParam2 = felem.LookupParameter(NFinishElemNaznParam);
                             Parameter roomParam3 = felem.get_Parameter(NFinishElemGroupParamGuid);
@@ -285,32 +279,24 @@ namespace TNovFinishing
                             roomParam2?.Set(roomNazn);
                             roomParam3?.Set(roomGroup);
 
+                            // Обработка предупреждений (как было)
                             FailureHandlingOptions failureHandlingOptions = transaction.GetFailureHandlingOptions();
-                            failureHandlingOptions.SetFailuresPreprocessor((IFailuresPreprocessor)new FloorIntersectionWarningSwallower());
+                            failureHandlingOptions.SetFailuresPreprocessor(new FloorIntersectionWarningSwallower());
                             transaction.SetFailureHandlingOptions(failureHandlingOptions);
-                            transaction.Commit(); created++;
-                            Logger.Log("   Новый пол создан",1);
-                            transaction.Start("Вырезание проемов");
-                            if (curveArray2.Size != 0)
-                            {
-                                Logger.Log("   Вырезаем отверстия",1);
-                                try
-                                {
-                                    doc.Create.NewOpening((Element)floor1, curveArray2, true);
-                                }
-                                catch
-                                {
-                                }
-                                Logger.Log("   Отверстия вырезаны",1);
-                            }
+
                             transaction.Commit();
+                            created++;
+                            Logger.Log("   Новый пол создан", 1);
+
+                            // --- Весь код, связанный с вырезанием проемов, удалён ---
+                            // (отверстия уже учтены в curveLoops)
                         }
                     }
                     
                     transactionGroup.Assimilate();
                 }
             }
-            #endregion
+#endregion
             if (created > 0)
             {
                 if (created == 1) { var info1 = new InfoWindow280("Успешно!\nПол в выбранном помещении создан."); info1.ShowDialog(); }
@@ -325,8 +311,13 @@ namespace TNovFinishing
             List<Room> currentSelection = new List<Room>();
             foreach (ElementId elementId in (IEnumerable<ElementId>)elementIds)
             {
+#if R2022
                 if (doc.GetElement(elementId) is Room && doc.GetElement(elementId).Category != null && doc.GetElement(elementId).Category.Id.IntegerValue.Equals(-2000160))
                     currentSelection.Add(doc.GetElement(elementId) as Room);
+#else
+                if (doc.GetElement(elementId) is Room && doc.GetElement(elementId).Category != null && doc.GetElement(elementId).Category.Id.Value.Equals(-2000160))
+                    currentSelection.Add(doc.GetElement(elementId) as Room);
+#endif
             }
             return currentSelection;
         }

@@ -91,6 +91,7 @@ namespace TNovFinishing
             Logger.Log("Сбор элементов",1);
 
             Autodesk.Revit.UI.Selection.Selection selection = commandData.Application.ActiveUIDocument.Selection;
+#if R2022
             List<FloorType> floors = ((IEnumerable<Element>)new FilteredElementCollector(doc) //типы полов системных
                 .OfClass(typeof(FloorType)))
                 .Where<Element>((Func<Element, bool>)(f => f.Category.Id.IntegerValue.Equals(-2000032)))
@@ -98,7 +99,15 @@ namespace TNovFinishing
                 .Where<Element>((Func<Element, bool>)(f => f.get_Parameter(gm).AsString().Contains("Пол")))
                 .Cast<FloorType>().OrderBy<FloorType, string>((Func<FloorType, string>)(f => ((Element)f).Name), (IComparer<string>)new AlphanumComparatorFastString())
                 .ToList<FloorType>(); //типы полов
-                        
+#else
+            List<FloorType> floors = ((IEnumerable<Element>)new FilteredElementCollector(doc) //типы полов системных
+                .OfClass(typeof(FloorType)))
+                .Where<Element>((Func<Element, bool>)(f => f.Category.Id.Value.Equals(-2000032)))
+                .Where<Element>((Func<Element, bool>)(f => f.get_Parameter(gm).AsString() != null))
+                .Where<Element>((Func<Element, bool>)(f => f.get_Parameter(gm).AsString().Contains("Пол")))
+                .Cast<FloorType>().OrderBy<FloorType, string>((Func<FloorType, string>)(f => ((Element)f).Name), (IComparer<string>)new AlphanumComparatorFastString())
+                .ToList<FloorType>(); //типы полов
+#endif
             List<FamilySymbol> floorsFI = new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Floors)   //типы полов семействами
                                                                          .WhereElementIsElementType()
                                                                          .OfClass(typeof(FamilySymbol))
@@ -132,7 +141,7 @@ namespace TNovFinishing
             {
                 Element e = doc.GetElement(f.Id); list1.Add(e);
             }
-            #endregion
+#endregion
 
             bool unhandledError = false;
 

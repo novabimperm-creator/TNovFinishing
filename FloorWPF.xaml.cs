@@ -1,5 +1,6 @@
 ﻿using System.Windows;
 using System.Windows.Input;
+using TNovCommon;
 
 namespace TNovFinishing
 {
@@ -36,7 +37,7 @@ namespace TNovFinishing
 
         private void HelpButton_Click(object sender, RoutedEventArgs e)
         {
-            string commandText = @"https://portal.talan.group/knowledge/proektirovanie/poly/";
+            string commandText = HelpLinks.GetHelpLink("Генератор полов");
             var proc = new System.Diagnostics.Process();
             proc.StartInfo.FileName = commandText;
             proc.StartInfo.UseShellExecute = true;

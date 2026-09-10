@@ -261,10 +261,14 @@ namespace TNovFinishing
                             transaction.Start("Создание пола");
                             Logger.Log("   Создаем новый пол", 1);
 
-                            // Используем перегрузку с параметром offset
-                            Floor floor1 = Floor.Create(doc, curveLoops, ft.Id, level.Id, false, null, offset);
+                            Floor floor1 = Floor.Create(doc, curveLoops, ft.Id, level.Id);
 
                             Element felem = (Element)floor1;
+
+                            // Смещение от уровня — через параметр, не через Floor.Create (последний аргумент там — уклон)
+                            Parameter heightOffsetParam = felem.get_Parameter(hal);
+                            if (heightOffsetParam != null && !heightOffsetParam.IsReadOnly)
+                                heightOffsetParam.Set(offset);
 
                             // Дополнительная установка параметров отделки (как в исходном коде)
                             Parameter roomParam = felem.get_Parameter(NFinishRoomParamGuid);

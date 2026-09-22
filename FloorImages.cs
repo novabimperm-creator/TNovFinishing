@@ -124,11 +124,7 @@ namespace TNovFinishing
             {
                 string info1txt = "Ошибка! В проекте отсутствуют типы полов. Необходимо наличие перекрытий со значением параметра Группа модели, содержащим слово Пол.";
                 var info1 = new InfoWindow400(info1txt); info1.ShowDialog();
-                string commandText = @"https://portal.talan.group/knowledge/proektirovanie/poly/";
-                var proc = new System.Diagnostics.Process();
-                proc.StartInfo.FileName = commandText;
-                proc.StartInfo.UseShellExecute = true;
-                proc.Start();
+                HelpLinks.ShowHelp("Генератор полов");
                 return Result.Cancelled;
             }
 

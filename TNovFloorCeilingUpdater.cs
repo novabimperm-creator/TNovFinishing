@@ -11,10 +11,12 @@ namespace TNovFinishing
 {
     public class TNovFloorCeilingUpdater : IUpdater
     {
+        private const string UpdaterName = "TNovFloorCeilingUpdater";
+
         private static AddInId m_appId;
         private static UpdaterId m_updaterId;
 
-        
+
         public TNovFloorCeilingUpdater(AddInId id)
         {
             m_appId = id;
@@ -22,6 +24,8 @@ namespace TNovFinishing
         }
         string GetTNazn(string Nazn, string Name)
         {
+            if (Nazn == null) Nazn = "";
+            if (Name == null) Name = "";
             string TNazn = "";
             if (Nazn.Contains("Жил")) TNazn = Nazn;
             else if (Nazn.Contains("Технич"))
@@ -53,51 +57,75 @@ namespace TNovFinishing
             return TNazn;
         }
 
+        /// <summary>
+        /// Точка входа Revit. Наружу не должно вылетать ни одного исключения:
+        /// любое исключение из IUpdater.Execute Revit показывает пользователю
+        /// с предложением отключить обновитель.
+        /// </summary>
         public void Execute(UpdaterData data)
         {
-            Document doc = data.GetDocument();
-            ICollection<ElementId> addedIds = data.GetAddedElementIds();
-            ICollection<ElementId> modifiedIds = data.GetModifiedElementIds();
-
-            // Объединяем все измененные элементы
-            var allElementIds = new HashSet<ElementId>(addedIds);
-            allElementIds.UnionWith(modifiedIds);
-
-            if (!allElementIds.Any()) return;
-
-            string docName = doc.Title.ToString();
-            if (docName.Contains("-АР") || docName.Contains("_АР") || docName.Contains("-АР-") || docName.Contains("_ПОФ") || docName.Contains("-ПОФ-"))
+            try
             {
-                foreach (ElementId elementId in allElementIds)
+                ExecuteCore(data);
+            }
+            catch (Exception ex)
+            {
+                UpdaterDiagnostics.Report(UpdaterName, "Execute", ex);
+            }
+        }
+
+        private void ExecuteCore(UpdaterData data)
+        {
+            if (data == null) return;
+
+            Document doc = data.GetDocument();
+            if (doc == null || doc.IsFamilyDocument) return;
+
+            string docName = doc.Title ?? "";
+            if (!(docName.Contains("-АР") || docName.Contains("_АР") || docName.Contains("-АР-")
+                || docName.Contains("_ПОФ") || docName.Contains("-ПОФ-"))) return;
+
+            var allElementIds = new HashSet<ElementId>();
+            ICollection<ElementId> addedIds = data.GetAddedElementIds();
+            if (addedIds != null) allElementIds.UnionWith(addedIds);
+            ICollection<ElementId> modifiedIds = data.GetModifiedElementIds();
+            if (modifiedIds != null) allElementIds.UnionWith(modifiedIds);
+
+            if (allElementIds.Count == 0) return;
+
+            foreach (ElementId elementId in allElementIds)
+            {
+                // Сбой на одном элементе не должен ронять обработку остальных
+                try
                 {
                     Element element = doc.GetElement(elementId);
                     if (element == null) continue;
 
                     // Проверяем категорию элемента
-                    if (IsFloorOrCeiling(element))
-                    {
-                        bool parsAreEmpty = false; //проверяем, что параметры не заполнены (запуск только если любой из параметров пустой)
-                        List<string> paramNames = new List<string>() { "N_Отделка.Помещение", "N_Отделка.Помещение и номер", "Отделка.Помещение.Назначение", "N_Отделка.ГруппаТекст" };
-                        foreach (string paramName in paramNames)
-                        {
-                            Parameter param = element.LookupParameter(paramName);
-                            if (param != null)
-                            {
-                                if (param.HasValue)
-                                {
-                                    if (param.AsString().Length < 1) { parsAreEmpty = true; break; }
-                                }
-                                else { parsAreEmpty = true; break; }
-                            }
-                        }
+                    if (!IsFloorOrCeiling(element)) continue;
 
-                        if (parsAreEmpty) UpdateElementRoomParameter(doc, element);
+                    bool parsAreEmpty = false; //проверяем, что параметры не заполнены (запуск только если любой из параметров пустой)
+                    List<string> paramNames = new List<string>() { "N_Отделка.Помещение", "N_Отделка.Помещение и номер", "Отделка.Помещение.Назначение", "N_Отделка.ГруппаТекст" };
+                    foreach (string paramName in paramNames)
+                    {
+                        Parameter param = element.LookupParameter(paramName);
+                        if (param != null)
+                        {
+                            if (param.HasValue)
+                            {
+                                if (UpdaterUtils.GetStringSafe(param).Length < 1) { parsAreEmpty = true; break; }
+                            }
+                            else { parsAreEmpty = true; break; }
+                        }
                     }
+
+                    if (parsAreEmpty) UpdateElementRoomParameter(doc, element);
+                }
+                catch (Exception ex)
+                {
+                    UpdaterDiagnostics.Report(UpdaterName, "элемент " + UpdaterUtils.IdText(elementId), ex);
                 }
             }
-                
-
-                
         }
 
         private bool IsFloorOrCeiling(Element element)
@@ -135,62 +163,23 @@ namespace TNovFinishing
                 Parameter roomParam3 = element.get_Parameter(NFinishElemGroupParamGuid);
                 Parameter roomParam4 = element.get_Parameter(NFinishRoomAndNumberParamGuid);
 
-                string roomName = room.get_Parameter(roomNameParam).AsString();
+                string roomName = UpdaterUtils.GetStringSafe(room.get_Parameter(roomNameParam));
                 string roomNazn = room.get_Parameter(roomNaznParam)?.AsString() ?? "";
                 string roomGroup = room.get_Parameter(NFinishRoomGroupParamGuid)?.AsInteger().ToString() ?? "";
                 string roomNumber = room.get_Parameter(roomNumberParam)?.AsString() ?? "";
                 string roomNameAndNumber = roomName + " (" + roomNumber + ")";
 
-                if (roomParam != null)
-                {
-                    string currentValue = roomParam?.AsString();
-                    if (currentValue != roomName)
-                    {
-                        roomParam.Set(roomName);
-                    }
-                }
+                UpdaterUtils.TrySetString(roomParam, roomName);
+                UpdaterUtils.TrySetString(roomParam2, roomNazn);
+                UpdaterUtils.TrySetString(roomParam3, roomGroup);
+                UpdaterUtils.TrySetString(roomParam4, roomNameAndNumber);
 
-                if (roomParam2 != null)
+                Parameter notSetFlag = UpdaterUtils.GetParam(element, NTParamsNotSetParamGuid);
+                if (notSetFlag != null && !UpdaterUtils.IsSkipFlagSet(notSetFlag))
                 {
-                    string currentValue2 = roomParam2?.AsString();
-                    if (currentValue2 != roomNazn)
-                    {
-                        roomParam2.Set(roomNazn);
-                    }
-                }
-
-                if (roomParam3 != null)
-                {
-                    string currentValue3 = roomParam3?.AsString();
-                    if (currentValue3 != roomGroup)
-                    {
-                        roomParam3.Set(roomGroup);
-                    }
-                }
-
-                if (roomParam4 != null)
-                {
-                    string currentValue4 = roomParam4.AsString();
-                    if (currentValue4 != roomNameAndNumber)
-                    {
-                        roomParam4.Set(roomNameAndNumber);
-                    }
-                }
-
-                if (Param.ParamExistByGuid(NTParamsNotSetParamGuid, element))
-                {
-                    if (element.get_Parameter(NTParamsNotSetParamGuid).AsDouble() != 1)
-                    {
-                        string value = GetTNazn(roomNazn, roomName);
-                        if (Param.ParamExistByGuid(TPolozhParamGuid, element))
-                        {
-                            element.get_Parameter(TPolozhParamGuid).Set(value);
-                        }
-                        if (Param.ParamExistByGuid(TNaznParamGuid, element))
-                        {
-                            element.get_Parameter(TNaznParamGuid).Set(value);
-                        }
-                    }
+                    string value = GetTNazn(roomNazn, roomName);
+                    UpdaterUtils.TrySetString(UpdaterUtils.GetWritableParam(element, TPolozhParamGuid), value);
+                    UpdaterUtils.TrySetString(UpdaterUtils.GetWritableParam(element, TNaznParamGuid), value);
                 }
             }
         }
@@ -331,7 +320,7 @@ namespace TNovFinishing
         public string GetAdditionalInformation() => "Обновляет имя помещения для перекрытий и потолков";
         public ChangePriority GetChangePriority() => ChangePriority.FloorsRoofsStructuralWalls;
         public UpdaterId GetUpdaterId() => m_updaterId;
-        public string GetUpdaterName() => "TNovFloorCeilingUpdater";
+        public string GetUpdaterName() => UpdaterName;
     }
 
 }

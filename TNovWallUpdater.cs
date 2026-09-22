@@ -17,6 +17,8 @@ namespace TNovFinishing
     [Transaction(TransactionMode.Manual)]
     public class TNovWallUpdater : IUpdater
     {
+        private const string UpdaterName = "TNovWallUpdater";
+
         static AddInId _appId;
         static UpdaterId _updaterId;
         //private double _shortWallThreshold = 0.3; // 300 мм - порог для "коротких" стен
@@ -29,58 +31,68 @@ namespace TNovFinishing
                                                    "081b8efe-9346-4223-93b3-25cd757c8a25"));
         }
 
+        /// <summary>
+        /// Точка входа Revit. Наружу не должно вылетать ни одного исключения:
+        /// любое исключение из IUpdater.Execute Revit показывает пользователю
+        /// с предложением отключить обновитель.
+        /// </summary>
         public void Execute(UpdaterData data)
         {
-            Document doc = data.GetDocument();
-            Autodesk.Revit.ApplicationServices.Application app = doc.Application;
+            try
+            {
+                ExecuteCore(data);
+            }
+            catch (Exception ex)
+            {
+                UpdaterDiagnostics.Report(UpdaterName, "Execute", ex);
+            }
+        }
 
-            ICollection<ElementId> modifiedElements = data.GetModifiedElementIds();
-            ICollection<ElementId> addedElements = data.GetAddedElementIds();
+        private void ExecuteCore(UpdaterData data)
+        {
+            if (data == null) return;
+
+            Document doc = data.GetDocument();
+            if (doc == null || doc.IsFamilyDocument) return;
+
+            string docName = doc.Title ?? "";
+            if (!(docName.Contains("-АР") || docName.Contains("_АР") || docName.Contains("-АР-")
+                || docName.Contains("_ПОФ") || docName.Contains("-ПОФ-"))) return;
 
             // Объединяем все измененные и добавленные элементы
-            var allElementIds = new List<ElementId>();
-            allElementIds.AddRange(modifiedElements);
-            allElementIds.AddRange(addedElements);
+            var allElementIds = new HashSet<ElementId>();
+            ICollection<ElementId> modifiedElements = data.GetModifiedElementIds();
+            if (modifiedElements != null) allElementIds.UnionWith(modifiedElements);
+            ICollection<ElementId> addedElements = data.GetAddedElementIds();
+            if (addedElements != null) allElementIds.UnionWith(addedElements);
 
             if (allElementIds.Count == 0) return;
 
-            string docName = doc.Title.ToString();
-            if (docName.Contains("-АР") || docName.Contains("_АР") || docName.Contains("-АР-") || docName.Contains("_ПОФ") || docName.Contains("-ПОФ-"))
+            foreach (ElementId elementId in allElementIds)
             {
-                foreach (ElementId elementId in allElementIds)
+                // Сбой на одной стене не должен ронять обработку остальных
+                try
                 {
                     Wall wall = doc.GetElement(elementId) as Wall;
                     if (wall == null) continue;
 
-                    Element type = doc.GetElement(wall.GetTypeId());
+                    Element type = UpdaterUtils.GetElementType(doc, wall);
+                    if (type == null) continue;
 
-                    bool gmHasValue = type.get_Parameter(BuiltInParameter.ALL_MODEL_MODEL).HasValue;
-                    string gMvalue = "-";
-                    if (gmHasValue) gMvalue = type.get_Parameter(BuiltInParameter.ALL_MODEL_MODEL).AsString();
+                    string gMvalue = UpdaterUtils.GetStringSafe(type.get_Parameter(BuiltInParameter.ALL_MODEL_MODEL));
+                    if (gMvalue.Length == 0) gMvalue = "-";
 
                     if (gMvalue.Contains("Отделка"))
                     {
-                        try
-                        {
-                            Room wallRoom = FindWallRoom(wall, doc);
-                            SetWallRoomParameter(wall, wallRoom);
-                        }
-                        catch (Exception ex)
-                        {
-                            // Логируем ошибку, но продолжаем обработку других стен
-                            System.Diagnostics.Debug.WriteLine($"Ошибка обработки стены {wall.Id}: {ex.Message}");
-                        }
+                        Room wallRoom = FindWallRoom(wall, doc);
+                        SetWallRoomParameter(wall, wallRoom);
                     }
-
-
+                }
+                catch (Exception ex)
+                {
+                    UpdaterDiagnostics.Report(UpdaterName, "стена " + UpdaterUtils.IdText(elementId), ex);
                 }
             }
-
-
-            
-
-
-
         }
         private Room FindWallRoom(Wall wall, Document doc)
         {
@@ -1076,66 +1088,29 @@ namespace TNovFinishing
             Parameter roomParam3 = wall.get_Parameter(NFinishElemGroupParamGuid);
             Parameter roomParam4 = wall.get_Parameter(NFinishRoomAndNumberParamGuid);
 
-            string roomName = room.get_Parameter(roomNameParam).AsString();
+            string roomName = UpdaterUtils.GetStringSafe(room.get_Parameter(roomNameParam));
             string roomNazn = room.get_Parameter(roomNaznParam)?.AsString() ?? "";
             string roomGroup = room.get_Parameter(NFinishRoomGroupParamGuid)?.AsInteger().ToString() ?? "";
             string roomNumber = room.get_Parameter(roomNumberParam)?.AsString() ?? "";
             string roomNameAndNumber = roomName + " (" + roomNumber + ")";
 
-            if (roomParam != null)
-            {
-                string currentValue = roomParam?.AsString();
-                if (currentValue != roomName)
-                {
-                    roomParam.Set(roomName);
-                }
-            }
+            UpdaterUtils.TrySetString(roomParam, roomName);
+            UpdaterUtils.TrySetString(roomParam2, roomNazn);
+            UpdaterUtils.TrySetString(roomParam3, roomGroup);
+            UpdaterUtils.TrySetString(roomParam4, roomNameAndNumber);
 
-            if (roomParam2 != null)
+            Parameter notSetFlag = UpdaterUtils.GetParam(wall, NTParamsNotSetParamGuid);
+            if (notSetFlag != null && !UpdaterUtils.IsSkipFlagSet(notSetFlag))
             {
-                string currentValue2 = roomParam2?.AsString();
-                if (currentValue2 != roomNazn)
-                {
-                    roomParam2.Set(roomNazn);
-                }
-            }
-
-            if (roomParam3 != null)
-            {
-                string currentValue3 = roomParam3?.AsString();
-                if (currentValue3 != roomGroup)
-                {
-                    roomParam3.Set(roomGroup);
-                }
-            }
-
-            if (roomParam4 != null)
-            {
-                string currentValue4 = roomParam4.AsString();
-                if (currentValue4 != roomNameAndNumber)
-                {
-                    roomParam4.Set(roomNameAndNumber);
-                }
-            }
-
-            if (Param.ParamExistByGuid(NTParamsNotSetParamGuid, wall))
-            {
-                if (wall.get_Parameter(NTParamsNotSetParamGuid).AsDouble() != 1)
-                {
-                    string value = GetTNazn(roomNazn, roomName);
-                    if (Param.ParamExistByGuid(TPolozhParamGuid, wall))
-                    {
-                        wall.get_Parameter(TPolozhParamGuid).Set(value);
-                    }
-                    if (Param.ParamExistByGuid(TNaznParamGuid, wall))
-                    {
-                        wall.get_Parameter(TNaznParamGuid).Set(value);
-                    }
-                }
+                string value = GetTNazn(roomNazn, roomName);
+                UpdaterUtils.TrySetString(UpdaterUtils.GetWritableParam(wall, TPolozhParamGuid), value);
+                UpdaterUtils.TrySetString(UpdaterUtils.GetWritableParam(wall, TNaznParamGuid), value);
             }
         }
         string GetTNazn(string Nazn, string Name)
         {
+            if (Nazn == null) Nazn = "";
+            if (Name == null) Name = "";
             string TNazn = "";
             if (Nazn.Contains("Жил")) TNazn = Nazn;
             else if (Nazn.Contains("Технич"))
@@ -1183,7 +1158,7 @@ namespace TNovFinishing
 
         public string GetUpdaterName()
         {
-            return "TNovWallUpdater";
+            return UpdaterName;
         }
     }
 }

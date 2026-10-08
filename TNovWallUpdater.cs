@@ -226,9 +226,9 @@ namespace TNovFinishing
                 BoundingBoxIntersectsFilter filter = new BoundingBoxIntersectsFilter(wallOutline);
 
                 var candidateRooms = new FilteredElementCollector(doc)
-                    .OfClass(typeof(Room))
+                    .OfClass(typeof(SpatialElement))
                     .WherePasses(filter)
-                    .Cast<Room>()
+                    .OfType<Room>()
                     .Where(r => r != null && r.Area > 0)
                     .ToList();
 
@@ -354,9 +354,9 @@ namespace TNovFinishing
                     XYZ wallCenter = curve.Evaluate(0.5, true);
 
                     var nearbyRooms = new FilteredElementCollector(doc)
-                        .OfClass(typeof(Room))
+                        .OfClass(typeof(SpatialElement))
                         .WhereElementIsNotElementType()
-                        .Cast<Room>()
+                        .OfType<Room>()
                         .Where(r => r != null && r.Area > 0)
                         .ToList();
 
@@ -574,9 +574,9 @@ namespace TNovFinishing
                     XYZ elevatedPoint = new XYZ(testPoint.X, testPoint.Y, testPoint.Z + wallHeight / 2);
 
                     var roomsAtPoint = new FilteredElementCollector(doc)
-                        .OfClass(typeof(Room))
+                        .OfClass(typeof(SpatialElement))
                         .WhereElementIsNotElementType()
-                        .Cast<Room>()
+                        .OfType<Room>()
                         .Where(r => r != null && IsPointInRoom(r, elevatedPoint, doc))
                         .ToList();
 
@@ -641,9 +641,9 @@ namespace TNovFinishing
                     };
 
                     var rooms = new FilteredElementCollector(doc)
-                        .OfClass(typeof(Room))
+                        .OfClass(typeof(SpatialElement))
                         .WhereElementIsNotElementType()
-                        .Cast<Room>()
+                        .OfType<Room>()
                         .Where(r => r != null && r.Area > 0);
 
                     foreach (Room room in rooms)
@@ -773,9 +773,9 @@ namespace TNovFinishing
                 BoundingBoxIntersectsFilter bbFilter = new BoundingBoxIntersectsFilter(wallOutline);
 
                 var candidateRooms = new FilteredElementCollector(doc)
-                    .OfClass(typeof(Room))
+                    .OfClass(typeof(SpatialElement))
                     .WherePasses(bbFilter)
-                    .Cast<Room>()
+                    .OfType<Room>()
                     .Where(r => r != null && r.Area > 0)
                     .ToList();
 
@@ -837,9 +837,9 @@ namespace TNovFinishing
 
                 // Ищем все помещения в радиусе 1 метр от центра стены
                 var nearbyRooms = new FilteredElementCollector(doc)
-                    .OfClass(typeof(Room))
+                    .OfClass(typeof(SpatialElement))
                     .WhereElementIsNotElementType()
-                    .Cast<Room>()
+                    .OfType<Room>()
                     .Where(r => r != null && r.Area > 0)
                     .OrderBy(r => GetRoomDistance(r, elevatedPoint, doc))
                     .ToList();
@@ -912,7 +912,7 @@ namespace TNovFinishing
                 var rooms = new FilteredElementCollector(doc)
                     .OfClass(typeof(SpatialElement))
                     .WhereElementIsNotElementType()
-                    .Cast<Room>()
+                    .OfType<Room>()
                     .Where(r => r != null && r.Area > 0);
 
                 foreach (Room room in rooms)
@@ -968,7 +968,7 @@ namespace TNovFinishing
                     .OfClass(typeof(SpatialElement))
                     .WherePasses(bbFilter)
                     .WhereElementIsNotElementType()
-                    .Cast<Room>()
+                    .OfType<Room>()
                     .Where(r => r != null && r.Area > 0)
                     .ToList();
 
